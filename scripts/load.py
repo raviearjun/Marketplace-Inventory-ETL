@@ -1,10 +1,22 @@
 """
-Load Module: Load data into PostgreSQL Data Warehouse
+Load Module: Load data into PostgreSQL Data Warehouse using TRUE UPSERT
+
+This module implements production-grade UPSERT (INSERT or UPDATE) logic:
+- New records are inserted
+- Existing records are updated
+- No TRUNCATE operations (safe for production)
+- Idempotent (re-runnable)
+- Transaction-safe (atomic operations)
+
+Implementation uses PostgreSQL's ON CONFLICT DO UPDATE feature with
+staging table approach for optimal performance.
 """
 
 import pandas as pd
 from sqlalchemy import create_engine, text
-from typing import Optional
+from sqlalchemy.exc import IntegrityError, OperationalError
+from datetime import datetime
+from typing import Optional, Dict
 import os
 
 
@@ -43,98 +55,225 @@ def get_db_connection(
     return engine
 
 
-def load_stores(stores_df: pd.DataFrame, engine) -> int:
+def load_stores(stores_df: pd.DataFrame, engine) -> Dict:
     """
-    Load stores data into PostgreSQL with UPSERT logic.
+    Load stores data into PostgreSQL using TRUE UPSERT logic.
+    
+    Uses staging table approach:
+    1. Load data to temporary staging table
+    2. MERGE staging -> stores using INSERT ... ON CONFLICT DO UPDATE
+    3. Updates existing records, inserts new ones
+    4. Sets updated_at = NOW() on UPDATE operations
     
     Args:
         stores_df: DataFrame with store data
         engine: SQLAlchemy engine
         
     Returns:
-        Number of records loaded
+        dict: {
+            'total': int,       # Total records processed
+            'inserted': int,    # New records inserted
+            'updated': int,     # Existing records updated
+            'execution_time_seconds': float
+        }
+        
+    Raises:
+        IntegrityError: On constraint violation
+        OperationalError: On database connection issues
+        
+    Note:
+        This function is idempotent - can be run multiple times safely.
     """
-    print(f"[LOAD] Loading {len(stores_df)} stores into database...")
+    print(f"[LOAD] Starting UPSERT for {len(stores_df)} stores...")
+    start_time = datetime.now()
+    staging_table = '_staging_stores'
     
-    # Load using pandas to_sql with if_exists='append' and handle duplicates
     try:
-        # Use UPSERT logic: ON CONFLICT DO UPDATE
+        # Step 1: Load to staging table
+        print(f"[LOAD] Creating staging table: {staging_table}")
         stores_df.to_sql(
-            'stores',
+            staging_table,
             engine,
-            if_exists='append',
+            if_exists='replace',
             index=False,
             method='multi',
             chunksize=1000
         )
         
-        print(f"[LOAD] Successfully loaded {len(stores_df)} stores")
-        return len(stores_df)
-        
-    except Exception as e:
-        print(f"[LOAD] Error loading stores: {e}")
-        # Try alternative: truncate and reload
+        # Step 2: Count before UPSERT (for statistics)
         with engine.connect() as conn:
-            conn.execute(text("TRUNCATE TABLE stores CASCADE"))
-            conn.commit()
+            count_before = conn.execute(text("SELECT COUNT(*) FROM stores")).scalar()
         
-        stores_df.to_sql(
-            'stores',
-            engine,
-            if_exists='append',
-            index=False,
-            method='multi',
-            chunksize=1000
-        )
+        # Step 3: Execute UPSERT with transaction
+        print(f"[LOAD] Executing UPSERT (INSERT ... ON CONFLICT DO UPDATE)...")
+        with engine.begin() as conn:
+            # Build dynamic UPDATE SET clause (exclude PK and created_at)
+            update_cols = [col for col in stores_df.columns 
+                          if col not in ['store_id', 'created_at']]
+            set_clause = ', '.join([f"{col} = EXCLUDED.{col}" for col in update_cols])
+            set_clause += ", updated_at = NOW()"
+            
+            # Define timestamp columns that need casting
+            timestamp_cols = ['store_last_active', 'store_created_at']
+            
+            # Build SELECT with explicit casting for timestamp columns
+            select_cols = []
+            for col in stores_df.columns:
+                if col in timestamp_cols:
+                    select_cols.append(f"CAST({col} AS TIMESTAMP) AS {col}")
+                else:
+                    select_cols.append(col)
+            select_clause = ', '.join(select_cols)
+            
+            # Execute UPSERT with explicit column casting
+            upsert_sql = f"""
+                INSERT INTO stores 
+                SELECT {select_clause} FROM {staging_table}
+                ON CONFLICT (store_id) 
+                DO UPDATE SET {set_clause}
+            """
+            conn.execute(text(upsert_sql))
+            
+            # Cleanup staging table
+            conn.execute(text(f"DROP TABLE {staging_table}"))
         
-        print(f"[LOAD] Successfully loaded {len(stores_df)} stores (after truncate)")
-        return len(stores_df)
+        # Step 4: Count after and calculate statistics
+        with engine.connect() as conn:
+            count_after = conn.execute(text("SELECT COUNT(*) FROM stores")).scalar()
+        
+        inserted = max(0, count_after - count_before)
+        updated = len(stores_df) - inserted
+        elapsed = (datetime.now() - start_time).total_seconds()
+        
+        print(f"[LOAD] UPSERT complete: {inserted} inserted, {updated} updated ({elapsed:.2f}s)")
+        
+        return {
+            'total': len(stores_df),
+            'inserted': inserted,
+            'updated': updated,
+            'execution_time_seconds': elapsed
+        }
+        
+    except IntegrityError as e:
+        print(f"[LOAD] Integrity constraint violation: {e}")
+        raise
+    except OperationalError as e:
+        print(f"[LOAD] Database operational error: {e}")
+        raise
+    except Exception as e:
+        print(f"[LOAD] Unexpected error during UPSERT: {e}")
+        raise
 
 
-def load_products(products_df: pd.DataFrame, engine) -> int:
+def load_products(products_df: pd.DataFrame, engine) -> Dict:
     """
-    Load products data into PostgreSQL with UPSERT logic.
+    Load products data into PostgreSQL using TRUE UPSERT logic.
+    
+    Uses staging table approach:
+    1. Load data to temporary staging table
+    2. MERGE staging -> products using INSERT ... ON CONFLICT DO UPDATE
+    3. Updates existing records, inserts new ones
+    4. Sets updated_at = NOW() on UPDATE operations
     
     Args:
         products_df: DataFrame with product data
         engine: SQLAlchemy engine
         
     Returns:
-        Number of records loaded
+        dict: {
+            'total': int,       # Total records processed
+            'inserted': int,    # New records inserted
+            'updated': int,     # Existing records updated
+            'execution_time_seconds': float
+        }
+        
+    Raises:
+        IntegrityError: On constraint violation (e.g., FK violation)
+        OperationalError: On database connection issues
+        
+    Note:
+        This function is idempotent - can be run multiple times safely.
+        Products must have valid store_id (FK constraint enforced).
     """
-    print(f"[LOAD] Loading {len(products_df)} products into database...")
+    print(f"[LOAD] Starting UPSERT for {len(products_df)} products...")
+    start_time = datetime.now()
+    staging_table = '_staging_products'
     
     try:
+        # Step 1: Load to staging table
+        print(f"[LOAD] Creating staging table: {staging_table}")
         products_df.to_sql(
-            'products',
+            staging_table,
             engine,
-            if_exists='append',
+            if_exists='replace',
             index=False,
             method='multi',
             chunksize=1000
         )
         
-        print(f"[LOAD] Successfully loaded {len(products_df)} products")
-        return len(products_df)
-        
-    except Exception as e:
-        print(f"[LOAD] Error loading products: {e}")
-        # Try alternative: truncate and reload
+        # Step 2: Count before UPSERT (for statistics)
         with engine.connect() as conn:
-            conn.execute(text("TRUNCATE TABLE products"))
-            conn.commit()
+            count_before = conn.execute(text("SELECT COUNT(*) FROM products")).scalar()
         
-        products_df.to_sql(
-            'products',
-            engine,
-            if_exists='append',
-            index=False,
-            method='multi',
-            chunksize=1000
-        )
+        # Step 3: Execute UPSERT with transaction
+        print(f"[LOAD] Executing UPSERT (INSERT ... ON CONFLICT DO UPDATE)...")
+        with engine.begin() as conn:
+            # Build dynamic UPDATE SET clause (exclude PK and created_at)
+            update_cols = [col for col in products_df.columns 
+                          if col not in ['id', 'created_at']]
+            set_clause = ', '.join([f"{col} = EXCLUDED.{col}" for col in update_cols])
+            set_clause += ", updated_at = NOW()"
+            
+            # Define timestamp columns that need casting
+            timestamp_cols = ['product_created_at', 'product_updated_at', 'crawled_at', 'created_at']
+            
+            # Build SELECT with explicit casting for timestamp columns
+            select_cols = []
+            for col in products_df.columns:
+                if col in timestamp_cols:
+                    select_cols.append(f"CAST({col} AS TIMESTAMP) AS {col}")
+                else:
+                    select_cols.append(col)
+            select_clause = ', '.join(select_cols)
+            
+            # Execute UPSERT with explicit column casting
+            upsert_sql = f"""
+                INSERT INTO products 
+                SELECT {select_clause} FROM {staging_table}
+                ON CONFLICT (id) 
+                DO UPDATE SET {set_clause}
+            """
+            conn.execute(text(upsert_sql))
+            
+            # Cleanup staging table
+            conn.execute(text(f"DROP TABLE {staging_table}"))
         
-        print(f"[LOAD] Successfully loaded {len(products_df)} products (after truncate)")
-        return len(products_df)
+        # Step 4: Count after and calculate statistics
+        with engine.connect() as conn:
+            count_after = conn.execute(text("SELECT COUNT(*) FROM products")).scalar()
+        
+        inserted = max(0, count_after - count_before)
+        updated = len(products_df) - inserted
+        elapsed = (datetime.now() - start_time).total_seconds()
+        
+        print(f"[LOAD] UPSERT complete: {inserted} inserted, {updated} updated ({elapsed:.2f}s)")
+        
+        return {
+            'total': len(products_df),
+            'inserted': inserted,
+            'updated': updated,
+            'execution_time_seconds': elapsed
+        }
+        
+    except IntegrityError as e:
+        print(f"[LOAD] Integrity constraint violation: {e}")
+        raise
+    except OperationalError as e:
+        print(f"[LOAD] Database operational error: {e}")
+        raise
+    except Exception as e:
+        print(f"[LOAD] Unexpected error during UPSERT: {e}")
+        raise
 
 
 def validate_data(engine) -> dict:
@@ -180,35 +319,42 @@ def validate_data(engine) -> dict:
 
 def load_data(stores_df: pd.DataFrame, products_df: pd.DataFrame) -> dict:
     """
-    Main load function - loads both stores and products into database.
+    Main load function - loads both stores and products using TRUE UPSERT.
+    
+    Loads stores first (parent table), then products (child table with FK).
+    Both tables use staging table approach with ON CONFLICT DO UPDATE.
     
     Args:
         stores_df: DataFrame with store data
         products_df: DataFrame with product data
         
     Returns:
-        Dictionary with load statistics
+        dict: {
+            'stores': {'total': int, 'inserted': int, 'updated': int, ...},
+            'products': {'total': int, 'inserted': int, 'updated': int, ...},
+            'validation': {...}
+        }
     """
     engine = get_db_connection()
     
     # Load stores first (parent table)
-    stores_loaded = load_stores(stores_df, engine)
+    stores_result = load_stores(stores_df, engine)
     
-    # Load products (child table)
-    products_loaded = load_products(products_df, engine)
+    # Load products (child table with FK to stores)
+    products_result = load_products(products_df, engine)
     
-    # Validate
+    # Validate data integrity
     validation = validate_data(engine)
     
     stats = {
-        'stores_loaded': stores_loaded,
-        'products_loaded': products_loaded,
+        'stores': stores_result,
+        'products': products_result,
         'validation': validation
     }
     
-    print(f"\n[LOAD] Load complete!")
-    print(f"  - Stores loaded: {stores_loaded}")
-    print(f"  - Products loaded: {products_loaded}")
+    print(f"\n[LOAD] UPSERT Complete!")
+    print(f"  - Stores: {stores_result['inserted']} inserted, {stores_result['updated']} updated")
+    print(f"  - Products: {products_result['inserted']} inserted, {products_result['updated']} updated")
     
     return stats
 

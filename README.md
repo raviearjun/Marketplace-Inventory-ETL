@@ -10,7 +10,7 @@
 
 ---
 
-## 📋 Table of Contents
+## Table of Contents
 
 - [Overview](#overview)
 - [Architecture](#architecture)
@@ -27,7 +27,7 @@
 
 ---
 
-## 🎯 Overview
+## Overview
 
 This project implements a production-ready ETL (Extract, Transform, Load) pipeline that:
 
@@ -38,17 +38,17 @@ This project implements a production-ready ETL (Extract, Transform, Load) pipeli
 
 ### Key Features
 
-✅ **Database Normalization**: Separates stores and products into 2NF/3NF schema  
-✅ **Data Cleaning**: Handles nulls, removes newlines, standardizes text  
-✅ **Deduplication**: Ensures no duplicate store_id or product_id  
-✅ **Data Integrity**: Foreign key constraints and type validation  
-✅ **Automated Scheduling**: Daily execution with Airflow  
-✅ **Error Handling**: Retry logic and comprehensive logging  
-✅ **Docker-based**: Fully containerized environment
+- **Database Normalization**: Separates stores and products into 2NF/3NF schema
+- **Data Cleaning**: Handles nulls, removes newlines, standardizes text
+- **Deduplication**: Ensures no duplicate store_id or product_id
+- **Data Integrity**: Foreign key constraints and type validation
+- **Automated Scheduling**: Daily execution with Airflow
+- **Error Handling**: Retry logic and comprehensive logging
+- **Docker-based**: Fully containerized environment
 
 ---
 
-## 🏗️ Architecture
+## Architecture
 
 ```
 ┌─────────────────┐
@@ -94,7 +94,7 @@ Orchestrated by Apache Airflow
 
 ---
 
-## 📦 Prerequisites
+## Prerequisites
 
 Before running this project, ensure you have:
 
@@ -106,7 +106,7 @@ Before running this project, ensure you have:
 
 ---
 
-## 🚀 Quick Start
+## Quick Start
 
 ### 1. Clone Repository
 
@@ -160,7 +160,7 @@ docker-compose logs -f
 
 ---
 
-## 📂 Project Structure
+## Project Structure
 
 ```
 techtest/
@@ -188,7 +188,7 @@ techtest/
 
 ---
 
-## 🗄️ Database Schema
+## Database Schema
 
 ### ERD (Entity Relationship Diagram)
 
@@ -251,7 +251,7 @@ techtest/
 
 ---
 
-## ⚙️ ETL Pipeline
+## ETL Pipeline
 
 ### DAG: `marketplace_etl_pipeline`
 
@@ -312,7 +312,7 @@ techtest/
 
 ---
 
-## 🧹 Data Transformations
+## Data Transformations
 
 ### Applied Cleaning Rules
 
@@ -327,16 +327,16 @@ techtest/
 
 ### Data Quality Improvements
 
-| Before                               | After                  | Improvement  |
-| ------------------------------------ | ---------------------- | ------------ |
-| ✘ `store_name` = "Ninik Wijaya"      | ✔ "NINIK WIJAYA"       | Standardized |
-| ✘ `description` = "text\\nmore text" | ✔ "text more text"     | Cleaned      |
-| ✘ `favorited_count` = NULL           | ✔ 0                    | Handled      |
-| ✘ Duplicate `product_id`             | ✔ Unique products only | Deduplicated |
+| Before                             | After                | Improvement  |
+| ---------------------------------- | -------------------- | ------------ |
+| `store_name` = "Ninik Wijaya"      | "NINIK WIJAYA"       | Standardized |
+| `description` = "text\\nmore text" | "text more text"     | Cleaned      |
+| `favorited_count` = NULL           | 0                    | Handled      |
+| Duplicate `product_id`             | Unique products only | Deduplicated |
 
 ---
 
-## 💻 Usage
+## Usage
 
 ### Manual Testing
 
@@ -380,7 +380,7 @@ docker-compose down -v
 
 ---
 
-## 📊 Monitoring
+## Monitoring
 
 ### Airflow UI Features
 
@@ -405,7 +405,7 @@ docker logs marketplace_postgres
 
 ---
 
-## 🔧 Troubleshooting
+## Troubleshooting
 
 ### Issue: Airflow UI tidak bisa diakses
 
@@ -453,7 +453,7 @@ sudo chown -R 50000:0 logs/
 
 ---
 
-## 📚 Theory Q&A
+## Theory Q&A
 
 ### 1. Why Separate `stores` and `products` Tables?
 
@@ -571,13 +571,13 @@ Summary table (jika dibuat) = **Data Mart** (aggregated for specific analysis)
 **Risk of Direct Delete**:
 
 ```
-JSON → ETL → PostgreSQL → DELETE JSON ❌
+JSON → ETL → PostgreSQL → DELETE JSON [NOT RECOMMENDED]
 
 Problem: Kalau ada error di transformation logic,
          data asli hilang selamanya!
 
 Solution:
-JSON → S3 (permanent) → ETL → PostgreSQL ✅
+JSON → S3 (permanent) → ETL → PostgreSQL [RECOMMENDED]
 ```
 
 ---
@@ -623,13 +623,13 @@ df.write \
 
 ---
 
-## 📝 License
+## License
 
 This project is created for technical test purposes.
 
 ---
 
-## 👤 Author
+## Author
 
 **Data Engineer Candidate**  
 Technical Test - Marketplace Inventory Pipeline  
@@ -637,7 +637,7 @@ Date: January 2026
 
 ---
 
-## 📞 Support
+## Support
 
 For questions or issues:
 
@@ -647,4 +647,4 @@ For questions or issues:
 
 ---
 
-**Made with ❤️ using Docker, Airflow, and PostgreSQL**
+**Made with Docker, Airflow, and PostgreSQL**

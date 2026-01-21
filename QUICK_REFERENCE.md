@@ -1,6 +1,7 @@
 # 🚀 QUICK REFERENCE CARD
 
 ## 📍 Project Location
+
 ```
 C:\dev\datains\techtest\
 ```
@@ -8,10 +9,12 @@ C:\dev\datains\techtest\
 ## 🔐 Credentials
 
 **Airflow UI:** http://localhost:8080
+
 - Username: `admin`
 - Password: `admin123`
 
 **PostgreSQL:**
+
 - Host: `localhost`
 - Port: `5432`
 - Database: `marketplace_dw`
@@ -21,28 +24,33 @@ C:\dev\datains\techtest\
 ## ⚡ Essential Commands
 
 ### Start Everything
+
 ```powershell
 cd C:\dev\datains\techtest
 docker-compose up -d
 ```
 
 ### Check Status
+
 ```powershell
 docker ps
 # Wait until all show "healthy" (~30s)
 ```
 
 ### Stop Everything
+
 ```powershell
 docker-compose stop
 ```
 
 ### Restart Everything
+
 ```powershell
 docker-compose restart
 ```
 
 ### View Logs
+
 ```powershell
 # Scheduler logs
 docker logs marketplace_airflow_scheduler --tail 50
@@ -55,6 +63,7 @@ docker logs marketplace_postgres --tail 50
 ```
 
 ### Database Access
+
 ```powershell
 # Interactive psql
 docker exec -it marketplace_postgres psql -U marketplace_user -d marketplace_dw
@@ -64,16 +73,19 @@ docker exec marketplace_postgres psql -U marketplace_user -d marketplace_dw -c "
 ```
 
 ### Trigger DAG Manually
+
 ```powershell
 docker exec marketplace_airflow_webserver airflow dags trigger marketplace_etl_pipeline
 ```
 
 ### Check DAG Status
+
 ```powershell
 docker exec marketplace_airflow_webserver airflow dags list
 ```
 
 ### Backup Database
+
 ```powershell
 $timestamp = Get-Date -Format "yyyyMMdd_HHmmss"
 docker exec marketplace_postgres pg_dump -U marketplace_user -d marketplace_dw -F c -f "/tmp/backup_$timestamp.dump"
@@ -81,6 +93,7 @@ docker cp "marketplace_postgres:/tmp/backup_$timestamp.dump" ".\data\backup_$tim
 ```
 
 ### Restore Database
+
 ```powershell
 docker cp ".\data\[backup_file].dump" marketplace_postgres:/tmp/
 docker exec marketplace_postgres pg_restore -U marketplace_user -d marketplace_dw -c /tmp/[backup_file].dump
@@ -96,12 +109,14 @@ docker exec marketplace_postgres pg_restore -U marketplace_user -d marketplace_d
 ## 🔧 Troubleshooting
 
 **Containers won't start?**
+
 ```powershell
 docker-compose down
 docker-compose up -d
 ```
 
 **Port already in use?**
+
 ```powershell
 # Check what's using port 8080 or 5432
 netstat -ano | findstr ":8080"
@@ -109,12 +124,14 @@ netstat -ano | findstr ":5432"
 ```
 
 **DAG not showing in UI?**
+
 ```powershell
 # Check DAG file syntax
 docker exec marketplace_airflow_webserver python /opt/airflow/dags/marketplace_etl_dag.py
 ```
 
 **Database connection failed?**
+
 ```powershell
 # Verify postgres is healthy
 docker ps --filter "name=marketplace_postgres"

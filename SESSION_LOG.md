@@ -5,12 +5,14 @@
 ### ✅ Completed Tasks
 
 #### **Step 1: Project Analysis & Planning**
+
 - ✅ Analyzed technical requirements
 - ✅ Reviewed data files (JSON 28MB, CSV 19MB)
 - ✅ Identified data issues: NULL values, newlines, duplicate IDs, typo (store_creted_at)
 - ✅ Created comprehensive project structure
 
 #### **Step 2: Docker Environment Setup**
+
 - ✅ Created `docker-compose.yml` (PostgreSQL + Airflow)
 - ✅ Configured `.env` with credentials
 - ✅ Fixed dependency issue (commented `_PIP_ADDITIONAL_REQUIREMENTS`)
@@ -18,6 +20,7 @@
 - ✅ Airflow admin user created: admin/admin123
 
 #### **Step 3: Database Schema Design**
+
 - ✅ Created `sql/init.sql` with DDL
 - ✅ 2 tables: stores (parent), products (child with FK)
 - ✅ 8 indexes for performance optimization
@@ -25,6 +28,7 @@
 - ✅ Tables auto-created on postgres startup
 
 #### **Step 4: ETL Pipeline Implementation**
+
 - ✅ `scripts/extract.py` - JSON/CSV extraction (nested structure handling)
 - ✅ `scripts/transform.py` - Data cleaning, deduplication, normalization
 - ✅ `scripts/load.py` - UPSERT logic, FK integrity, validation
@@ -32,6 +36,7 @@
 - ✅ `dags/marketplace_etl_dag.py` - 6-task orchestration
 
 #### **Step 5: ETL Execution & Validation**
+
 - ✅ DAG registered: `marketplace_etl_pipeline`
 - ✅ DAG Run #1: SUCCESS (16 seconds)
   - Extract: 10,000 records from JSON
@@ -50,6 +55,7 @@
 ### 📊 Performance Metrics
 
 **ETL Execution (Initial Load):**
+
 - Extract: 2.1s
 - Transform: 2.7s
 - Load Stores: 0.6s
@@ -59,6 +65,7 @@
 - **Total: ~16 seconds**
 
 **Database Statistics:**
+
 - Total Stores: 890
 - Total Products: 10,000
 - Avg Products per Store: 11
@@ -68,17 +75,20 @@
 ### 🔧 Technical Stack
 
 **Infrastructure:**
+
 - Docker Compose 3.8
 - PostgreSQL 15 (port 5432)
 - Apache Airflow 2.7.3-python3.11 (port 8080)
 - LocalExecutor (no Celery/Redis needed)
 
 **Python Libraries (included in base image):**
+
 - pandas 2.1.2
 - sqlalchemy 1.4.50
 - psycopg2 2.9.9
 
 **Airflow Configuration:**
+
 - Admin: admin / admin123
 - Executor: LocalExecutor
 - DAGs paused at creation: False (auto-enabled)
@@ -128,6 +138,7 @@ c:\dev\datains\techtest\
 ### 🔄 To Resume Work Tomorrow
 
 **Quick Start:**
+
 ```powershell
 # 1. Navigate to project
 cd C:\dev\datains\techtest
@@ -146,6 +157,7 @@ docker exec -it marketplace_postgres psql -U marketplace_user -d marketplace_dw
 ```
 
 **Restore Backup (if needed):**
+
 ```powershell
 docker cp .\data\marketplace_dw_backup_20260121_010444.dump marketplace_postgres:/tmp/
 docker exec marketplace_postgres pg_restore -U marketplace_user -d marketplace_dw -c /tmp/marketplace_dw_backup_20260121_010444.dump
@@ -154,6 +166,7 @@ docker exec marketplace_postgres pg_restore -U marketplace_user -d marketplace_d
 ### 📝 Notes
 
 **Key Learnings:**
+
 - Base Airflow image already includes pandas/sqlalchemy/psycopg2
 - `_PIP_ADDITIONAL_REQUIREMENTS` causes init failures (commented out)
 - TRUNCATE CASCADE fallback ensures idempotency
@@ -161,9 +174,11 @@ docker exec marketplace_postgres pg_restore -U marketplace_user -d marketplace_d
 - FK constraints prevent orphaned products via CASCADE delete
 
 **Known Issues:**
+
 - None! All systems operational.
 
 **Future Enhancements (Optional):**
+
 - Build custom Docker image (production-ready)
 - Add data quality tests (Great Expectations)
 - Implement incremental ETL (CDC)
